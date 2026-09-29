@@ -16,6 +16,23 @@ npm run dev        # restarts automatically when you edit code
 npm test
 ```
 
+## Run it with Docker
+
+```sh
+docker build -t statuswatch .
+docker run -d --name statuswatch -p 3000:3000 statuswatch
+```
+
+To watch your own sites without rebuilding, mount your own targets file:
+
+```sh
+docker run -d --name statuswatch -p 3000:3000 \
+  -v ./my-targets.json:/app/targets.json:ro statuswatch
+```
+
+The container runs as a non-root user, reports its health to Docker
+(`docker ps` shows `healthy`), and shuts down cleanly on `docker stop`.
+
 ## Endpoints
 
 | Path          | What it returns                                        |
@@ -61,7 +78,7 @@ included too.
 ## Roadmap
 
 - [x] **Phase 1:** the app, with tests
-- [ ] **Phase 2:** Docker image
+- [x] **Phase 2:** Docker image
 - [ ] **Phase 3:** CI: run tests, build and publish the image to GitHub Container Registry
 - [ ] **Phase 4:** Docker Compose with Prometheus and Grafana
 - [ ] **Phase 5:** Alerts when a site goes down

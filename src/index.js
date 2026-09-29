@@ -3,7 +3,14 @@ import { createMetrics } from './metrics.js';
 import { Monitor } from './monitor.js';
 import { createServer } from './server.js';
 
-const config = loadConfig();
+let config;
+try {
+  config = loadConfig();
+} catch (err) {
+  // Bad config is a user mistake, not a crash: print one clear line.
+  console.error(`Config error: ${err.message}`);
+  process.exit(1);
+}
 const metrics = createMetrics();
 
 const monitor = new Monitor({
