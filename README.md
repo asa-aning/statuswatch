@@ -18,7 +18,18 @@ npm run dev        # restarts automatically when you edit code
 npm test
 ```
 
-## Run it with Docker
+## Run the published image
+
+Every push to `main` publishes a tested image to GitHub Container Registry:
+
+```sh
+docker run -d --name statuswatch -p 3000:3000 ghcr.io/asa-aning/statuswatch:latest
+```
+
+Tags: `latest` (main branch), `sha-<commit>` (a specific commit), and
+`1.2.3` / `1.2` for releases tagged `v1.2.3`.
+
+## Build it yourself with Docker
 
 ```sh
 docker build -t statuswatch .
