@@ -7,7 +7,7 @@
 # ends up in the final image, so build tools stay behind.
 
 # ── Stage 1: install dependencies ──────────────────────────────
-FROM node:24-alpine AS deps
+FROM node:26-alpine AS deps
 WORKDIR /app
 
 # Copy ONLY the dependency list first, then install. As long as
@@ -17,7 +17,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 # ── Stage 2: the runtime image ─────────────────────────────────
-FROM node:24-alpine
+FROM node:26-alpine
 
 # The app runs with plain `node`, so remove the package managers that
 # ship with the base image. They're the biggest source of security
