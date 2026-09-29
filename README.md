@@ -47,6 +47,38 @@ docker run -d --name statuswatch -p 3000:3000 \
 The container runs as a non-root user, reports its health to Docker
 (`docker ps` shows `healthy`), and shuts down cleanly on `docker stop`.
 
+## Monitoring stack: Prometheus + Grafana
+
+One command starts StatusWatch, Prometheus (stores the metrics history)
+and Grafana (dashboards):
+
+```sh
+docker compose up -d --build
+```
+
+| Service     | URL                    | Notes                                  |
+|-------------|------------------------|----------------------------------------|
+| StatusWatch | http://localhost:3000  | Status page                            |
+| Prometheus  | http://localhost:9090  | Try the query `statuswatch_target_up`  |
+| Grafana     | http://localhost:3001  | Log in as `admin` / `admin`; the StatusWatch dashboard opens first |
+
+Before running this anywhere but your own computer, set a real Grafana
+password in a `.env` file next to `compose.yaml` (it's gitignored):
+
+```sh
+GRAFANA_ADMIN_PASSWORD=pick-something-long
+```
+
+- Edit `targets.json`, then `docker compose restart statuswatch`.
+- Prometheus keeps 30 days of history in a Docker volume, so it survives
+  `docker compose down`. `docker compose down -v` deletes it.
+- The data source and dashboard are provisioned from
+  [`monitoring/grafana/`](monitoring/grafana/). Changes made in the Grafana
+  UI can't be saved; edit the JSON file instead, so git stays the source
+  of truth.
+- All ports are bound to `127.0.0.1`, so nothing is reachable from other
+  machines on your network.
+
 ## Endpoints
 
 | Path          | What it returns                                        |
@@ -94,6 +126,6 @@ included too.
 - [x] **Phase 1:** the app, with tests
 - [x] **Phase 2:** Docker image
 - [x] **Phase 3:** CI: run tests, build and publish the image to GitHub Container Registry
-- [ ] **Phase 4:** Docker Compose with Prometheus and Grafana
+- [x] **Phase 4:** Docker Compose with Prometheus and Grafana
 - [ ] **Phase 5:** Alerts when a site goes down
 - [ ] **Phase 6:** Deploy to a cloud server with Terraform

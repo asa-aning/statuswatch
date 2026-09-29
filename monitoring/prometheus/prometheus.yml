@@ -1,0 +1,16 @@
+# Prometheus "scrapes" (fetches) /metrics from each target on a schedule
+# and stores every value with a timestamp, so you get history and graphs.
+
+global:
+  scrape_interval: 15s        # fetch metrics every 15 seconds
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: statuswatch
+    static_configs:
+      - targets: ["statuswatch:3000"]   # Compose service name, not localhost
+
+  # Prometheus can monitor itself too: handy to spot it running out of space.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
