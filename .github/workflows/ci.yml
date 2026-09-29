@@ -1,0 +1,121 @@
+# CI/CD for StatusWatch.
+#   Every push and PR:   run tests → build image → smoke-test the image
+#   Push to main / tag:  ...and publish the image to GitHub Container Registry
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']            # pushing a tag like v1.0.0 publishes a versioned image
+  pull_request:
+  workflow_dispatch:
+
+# If you push twice quickly, cancel the older run instead of wasting minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: jobs get read-only access unless they ask for more.
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}   # → ghcr.io/asa-aning/statuswatch
+
+jobs:
+  # ── Job 1: tests ────────────────────────────────────────────
+  test:
+    name: Test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24]      # runs this job twice, once per version, in parallel
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm        # reuse downloaded packages between runs
+
+      - run: npm ci         # clean install exactly what package-lock.json says
+      - run: npm test
+
+  # ── Job 2: build, smoke-test and publish the image ─────────
+  docker:
+    name: Docker image
+    needs: test             # only runs if every test job passed
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write       # needed to push to ghcr.io
+    steps:
+      - uses: actions/checkout@v4
+
+      # Buildx = Docker's modern builder; needed for the layer cache below.
+      - uses: docker/setup-buildx-action@v3
+
+      # Work out image tags from the git event:
+      #   push to main  → :latest and :sha-abc1234
+      #   tag v1.2.3    → :1.2.3 and :1.2
+      #   pull request  → :pr-5 (built, never pushed)
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=pr
+
+      # Build once and load it into the runner's Docker so we can test it.
+      # The GitHub Actions cache (type=gha) makes repeat builds fast.
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: statuswatch:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Smoke test: does the real image start and report healthy?
+      # Tests prove the code works; this proves the *image* works.
+      - name: Smoke test
+        run: |
+          docker run -d --name smoke -p 3000:3000 statuswatch:ci
+          for _ in $(seq 1 30); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' smoke)
+            echo "health: $status"
+            [ "$status" = healthy ] && break
+            [ "$status" = unhealthy ] && break
+            sleep 1
+          done
+          docker logs smoke
+          [ "$status" = healthy ] || { echo "::error::Container never became healthy"; exit 1; }
+          curl -fsS localhost:3000/health
+          curl -fsS localhost:3000/metrics | grep -q statuswatch_target_up
+          docker stop smoke
+
+      # GITHUB_TOKEN is created automatically for every run: no secret to set up.
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Same build as above, so every layer comes straight from cache.
+      - name: Publish image
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha

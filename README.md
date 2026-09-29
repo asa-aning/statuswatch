@@ -1,5 +1,7 @@
 # StatusWatch
 
+[![CI](https://github.com/asa-aning/statuswatch/actions/workflows/ci.yml/badge.svg)](https://github.com/asa-aning/statuswatch/actions/workflows/ci.yml)
+
 A small uptime monitor. It checks a list of websites on a timer and shows
 the results on a status page, as JSON and as Prometheus metrics.
 

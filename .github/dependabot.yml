@@ -1,0 +1,21 @@
+# Weekly pull requests to upgrade what StatusWatch depends on.
+# CI runs on each one, so a green check means the upgrade is safe to merge.
+version: 2
+updates:
+  - package-ecosystem: github-actions   # the "uses:" lines in workflows
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: npm              # prom-client and friends
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker           # the node:24-alpine base image
+    directory: /
+    schedule:
+      interval: weekly
