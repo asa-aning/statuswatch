@@ -1,23 +1,40 @@
 # A Dockerfile is a recipe for an image. Each instruction adds a "layer".
 # Docker caches layers, so the order matters: things that change rarely
 # go first, things that change often (your code) go last.
+#
+# This is a MULTI-STAGE build: stage 1 installs packages with npm,
+# stage 2 is the image that actually ships. Only what we COPY across
+# ends up in the final image, so build tools stay behind.
 
-# Start from the official Node.js 24 image on Alpine Linux (~50 MB base).
-FROM node:24-alpine
-
-# Tell Node and libraries this is production (less logging, faster).
-ENV NODE_ENV=production
-
-# All following commands run inside /app in the image.
+# ── Stage 1: install dependencies ──────────────────────────────
+FROM node:24-alpine AS deps
 WORKDIR /app
 
 # Copy ONLY the dependency list first, then install. As long as
 # package.json doesn't change, Docker reuses this layer from cache and
 # skips the install, even when you edit the code.
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm ci --omit=dev
 
-# Now copy the code. Editing a .js file only rebuilds from here down.
+# ── Stage 2: the runtime image ─────────────────────────────────
+FROM node:24-alpine
+
+# The app runs with plain `node`, so remove the package managers that
+# ship with the base image. They're the biggest source of security
+# findings (npm bundles its own copies of tar, semver, etc.) and an
+# attacker who got in could use them to install tools.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+           /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+           /opt/yarn-* /usr/local/bin/yarn /usr/local/bin/yarnpkg
+
+# Tell Node and libraries this is production (less logging, faster).
+ENV NODE_ENV=production
+WORKDIR /app
+
+# Take the installed packages from stage 1, then add the code.
+# Editing a .js file only rebuilds from here down.
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json ./
 COPY src ./src
 COPY targets.json ./
 

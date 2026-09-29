@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node: [22, 24]      # runs this job twice, once per version, in parallel
+        node: [22, 24, 26]  # runs this job once per version, in parallel
     steps:
       - uses: actions/checkout@v7
 
@@ -52,6 +52,10 @@ jobs:
       packages: write       # needed to push to ghcr.io
     steps:
       - uses: actions/checkout@v7
+
+      # QEMU lets this Intel/AMD runner build images for ARM64 too
+      # (AWS Graviton, Oracle free tier, Raspberry Pi).
+      - uses: docker/setup-qemu-action@v4
 
       # Buildx = Docker's modern builder; needed for the layer cache below.
       - uses: docker/setup-buildx-action@v4
@@ -100,6 +104,19 @@ jobs:
           curl -fsS localhost:3000/metrics | grep -q statuswatch_target_up
           docker stop smoke
 
+      # Security scan: fail if the image contains a HIGH or CRITICAL
+      # vulnerability that already has a fix available. Pinned to an exact
+      # commit (not a tag) because tags can be moved to malicious code;
+      # Dependabot still updates it and keeps the version comment.
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: statuswatch:ci
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
       # GITHUB_TOKEN is created automatically for every run: no secret to set up.
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
@@ -109,13 +126,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Same build as above, so every layer comes straight from cache.
+      # Publish for both CPU types. The amd64 layers come straight from
+      # the cache of the build above; arm64 is built here under QEMU.
       - name: Publish image
         if: github.event_name != 'pull_request'
         uses: docker/build-push-action@v7
         with:
           context: .
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
+          cache-to: type=gha,mode=max

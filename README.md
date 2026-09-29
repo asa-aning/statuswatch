@@ -20,7 +20,8 @@ npm test
 
 ## Run the published image
 
-Every push to `main` publishes a tested image to GitHub Container Registry:
+Every push to `main` publishes a tested, security-scanned image to GitHub
+Container Registry, for both Intel/AMD (`amd64`) and ARM (`arm64`) machines:
 
 ```sh
 docker run -d --name statuswatch -p 3000:3000 ghcr.io/asa-aning/statuswatch:latest
