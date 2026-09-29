@@ -9,3 +9,5 @@ test
 *.log
 Dockerfile
 .dockerignore
+compose.yaml
+monitoring

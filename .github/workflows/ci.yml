@@ -42,7 +42,30 @@ jobs:
       - run: npm ci         # clean install exactly what package-lock.json says
       - run: npm test
 
-  # ── Job 2: build, smoke-test and publish the image ─────────
+  # ── Job 2: are the monitoring configs valid? ───────────────
+  # A typo in prometheus.yml or the dashboard would only show up when
+  # someone starts the stack. Catch it on the PR instead.
+  monitoring-config:
+    name: Monitoring config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Validate compose.yaml
+        run: docker compose config --quiet
+
+      # Runs promtool from the exact Prometheus image compose.yaml uses,
+      # so the version is only written down in one place.
+      - name: Validate Prometheus config
+        run: docker compose run --rm --no-deps --entrypoint promtool prometheus check config /etc/prometheus/prometheus.yml
+
+      - name: Validate Grafana dashboards are valid JSON
+        run: |
+          for f in monitoring/grafana/dashboards/*.json; do
+            jq empty "$f" && echo "ok: $f"
+          done
+
+  # ── Job 3: build, smoke-test and publish the image ─────────
   docker:
     name: Docker image
     needs: test             # only runs if every test job passed

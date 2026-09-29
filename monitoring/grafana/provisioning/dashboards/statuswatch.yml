@@ -1,0 +1,10 @@
+# Load every dashboard JSON file from this folder on startup.
+apiVersion: 1
+
+providers:
+  - name: StatusWatch
+    folder: StatusWatch
+    type: file
+    allowUiUpdates: false      # the JSON file in git is the source of truth
+    options:
+      path: /var/lib/grafana/dashboards

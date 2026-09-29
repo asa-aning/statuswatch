@@ -1,0 +1,74 @@
+# Docker Compose runs several containers together as one "stack".
+#   docker compose up -d     start everything in the background
+#   docker compose ps        see what's running and healthy
+#   docker compose logs -f   follow the logs of all services
+#   docker compose down      stop and remove the containers (data volumes stay)
+#
+# Services find each other by name on a private network that Compose
+# creates, e.g. Prometheus scrapes http://statuswatch:3000/metrics.
+
+services:
+  statuswatch:
+    build: .                          # build from the Dockerfile in this folder
+    restart: unless-stopped           # come back after a crash or a reboot
+    environment:
+      CHECK_INTERVAL_SECONDS: ${CHECK_INTERVAL_SECONDS:-60}
+    volumes:
+      - ./targets.json:/app/targets.json:ro   # edit targets without rebuilding
+    ports:
+      - "127.0.0.1:3000:3000"         # 127.0.0.1 = only reachable from this computer
+    read_only: true                   # the app never writes to disk, so forbid it
+    security_opt:
+      - no-new-privileges:true
+
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d     # keep 30 days of history
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus           # survives `docker compose down`
+    ports:
+      - "127.0.0.1:9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    depends_on:
+      statuswatch:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:13.2.3
+    restart: unless-stopped
+    environment:
+      # Set a real password in a .env file next to this one (it's gitignored):
+      #   GRAFANA_ADMIN_PASSWORD=something-long
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/statuswatch.json
+    volumes:
+      # "Provisioning" = Grafana config as code: the data source and the
+      # dashboard are created from these files on startup, no clicking.
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3001:3000"         # Grafana on 3001, since StatusWatch has 3000
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    depends_on:
+      prometheus:
+        condition: service_healthy
+
+volumes:
+  prometheus-data:
+  grafana-data:

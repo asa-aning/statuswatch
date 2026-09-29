@@ -1,0 +1,12 @@
+# Tells Grafana where Prometheus is. The fixed uid lets the dashboard
+# JSON refer to this data source by name.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
