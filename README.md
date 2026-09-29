@@ -81,7 +81,7 @@ included too.
 
 - [x] **Phase 1:** the app, with tests
 - [x] **Phase 2:** Docker image
-- [ ] **Phase 3:** CI: run tests, build and publish the image to GitHub Container Registry
+- [x] **Phase 3:** CI: run tests, build and publish the image to GitHub Container Registry
 - [ ] **Phase 4:** Docker Compose with Prometheus and Grafana
 - [ ] **Phase 5:** Alerts when a site goes down
 - [ ] **Phase 6:** Deploy to a cloud server with Terraform
